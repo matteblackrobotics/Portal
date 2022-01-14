@@ -1,0 +1,321 @@
+// Heartbeat code
+// Looks Great
+// Mega
+// with brightness and range pots
+
+float Pi = 3.1459;
+float rad = 0;
+int delay1 = 6;
+
+// ----------------- LEDs -------------- //
+#include <Adafruit_NeoPixel.h>
+
+// Nano
+// const int num_LEDs = 24;
+// const int LED_pin = 8;
+
+// Mega
+const int num_LEDs = 300;
+const int LED_pin = 22;
+
+Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(num_LEDs, LED_pin, NEO_GRB + NEO_KHZ800);
+
+// Colors, Max = 255
+int R;
+int G;
+int B;
+
+// --------------- Heatbeat ------------- //
+// Combined Heartbeat
+const int hb_steps_total = 100;               // how long the beat wave lasts
+int hb_brightness[hb_steps_total];            // sine array brightness levels
+int hb_brightness_max = 175;                  // max brightness of sine array based
+int hb_index = 0;
+
+// starting positions
+int sy_start_index = hb_steps_total * .25;
+int di_start_index = hb_steps_total * .4;
+
+// length of pulses
+const int bl_steps_total = hb_steps_total * 1;
+const int sy_steps_total = hb_steps_total * .1;
+const int di_steps_total = hb_steps_total * .1;
+
+
+// Baseline Brightness
+float bl_a = .1;                    // amplitude
+float bl_a0 = .5;                     // normalized amp to 1
+float bl_x0 = -Pi / 2;                 // x shift
+float bl_y0 = 1.25 ;                      // y shift
+float bl_f = (2 * Pi) / bl_steps_total; // frequency
+float bl_sq = 1;                      // steepness
+int bl_index = 0;                     // index in array
+int bl_brightness[bl_steps_total];    // brightness array
+
+// Systolic Brightness
+float sy_a = 1;                    // amplitude
+float sy_a0 = .5;                     // normalized amp to 1
+float sy_x0 = -Pi / 2;             // starting position
+float sy_y0 = 1;
+float sy_f = (2 * Pi) / sy_steps_total; // frequency
+float sy_sq = 10;                      // rate of increase
+int sy_index = 0;                     // index in array
+int sy_steps = 2 * Pi;                // ??
+int sy_brightness_max = 50;           // max brightness
+int sy_brightness[sy_steps_total];    // brightness array
+
+// Diastolic Brightness
+float di_a = .6;                      // amplitude
+float di_a0 = .5;                     // normalized amp to 1
+float di_x0 = -Pi / 2;                // x shift
+float di_y0 = 1;                      // y shift
+float di_f = (2 * Pi) / di_steps_total; // frequency
+float di_sq = 12;                     // rate of increase
+int di_index = 0;                     // index in array
+int di_brightness_max = 20;           // max brightness
+int di_brightness[di_steps_total];    // brightness array
+
+
+
+// ---------------- NightSky ------------ //
+int LED_index = 0;                      // which LED
+int LED_brightness[num_LEDs];           // brightness of each LED
+int LED_step_indexes[num_LEDs];         // which index each LED is in the brightness array
+
+// brightness array
+// const int total_brightness_steps = 400;       // how long the brightness wave
+const int total_brightness_steps = 100;       // how long the brightness wave FOR NANO
+int brightness_array[total_brightness_steps]; // sine array brightness levels
+int brightness_array_index = 0;               // index in brightness array
+int ns_brightness_max = 250;                   // max brightness of brightness sine array
+
+// raw sine array, ns = nightsky
+float ns_a = 1;                               // amplitude
+float ns_a0 = .5;                             // noralize amplitude to 1
+float ns_x0 = -Pi / 2;                        // x shift
+float ns_y0 = 1;                              // y shift
+float ns_f = (2 * Pi) / total_brightness_steps; // frequency, length of wave
+
+// random value
+int on_random_val = 0;
+// int on_random_max = 2000;    // How likely to turn on
+int on_random_max = 1000;    // How likely to turn on
+
+// ------------ Max Sonar ----------- //
+const int sonar_pin = 0;
+long inches;
+int distance_min = 92;
+
+// -------- pots ------- //
+const int range_pot_pin = 12;
+int range_pot;
+
+const int brightness_pot_pin = 13;
+float brightness_pot;
+float brightness_scale;
+
+
+// -------------------------------------------------------- void setup ------------------------------------------------- //
+void setup()
+{
+  Serial.begin(250000); delay(2000);
+  Serial.println(" ");
+
+  strip1.begin();
+  strip1.show(); // Initialize all pixels to 'off'
+
+  brightness_pot = analogRead(brightness_pot_pin);
+  brightness_scale = brightness_pot/1023; // [0.0:1.0]
+
+  hb_brightness_max = hb_brightness_max * brightness_scale;
+
+  Serial.print("  brightness_scale " ); Serial.print(brightness_scale);
+  Serial.print("  hb_brightness_max " ); Serial.print(hb_brightness_max);
+  delay(1000);
+  
+
+  // ------------------------------ Hearbeat Setup ---------------------------------------- //
+  // -------------- Build Full Heartbeat Brightness -------------- //
+  Serial.print(" Framework: ");
+  for (hb_index = 0; hb_index < hb_steps_total; hb_index++) // set all to 0
+  {
+    hb_brightness[hb_index] = 0;
+    Serial.print(" ");
+  }
+  Serial.println(" ");
+
+  // -------------- Build Baseline Brightness -------------- //
+  Serial.print(" Baseline: ");
+  for (bl_index = 0; bl_index < bl_steps_total; bl_index++)
+  {
+    rad = bl_f * bl_index + bl_x0;                                           // shifts converts degress to rads
+    bl_brightness[bl_index] = bl_a * pow((bl_a0 * (sin(rad) + bl_y0)), bl_sq) * hb_brightness_max;  // solves for sine wave
+    Serial.print(bl_brightness[bl_index]); Serial.print(" ");
+  }
+  Serial.println(" ");
+
+
+  // -------------- Build Systolic Brightness -------------- //
+  Serial.print(" Systolic: ");
+  for (sy_index = 0; sy_index < sy_steps_total; sy_index++)
+  {
+    rad = sy_f * sy_index + sy_x0;                                           // shifts converts degress to rads
+    sy_brightness[sy_index] = sy_a * pow((sy_a0 * (sin(rad) + sy_y0)), sy_sq) * hb_brightness_max;  // solves for sine wave
+    Serial.print(sy_brightness[sy_index]); Serial.print(" ");
+  }
+  Serial.println(" ");
+
+
+  // -------------- Build Diastolic Brightness -------------- //
+  Serial.print(" Diastolic: ");
+  for (di_index = 0; di_index < di_steps_total; di_index++)
+  {
+    rad = di_f * di_index + di_x0;                                                               // shifts converts degress to rads
+    di_brightness[di_index] = di_a * pow((di_a0 * (sin(rad) + di_y0)), di_sq) * hb_brightness_max;  // solves for sine wave
+    Serial.print(di_brightness[di_index]); Serial.print(" ");
+  }
+  Serial.println(" ");
+
+
+  // add baseline
+  for (hb_index = 0; hb_index < bl_steps_total; hb_index++)
+  {
+    hb_brightness[hb_index] = bl_brightness[hb_index];
+  }
+
+
+  // from sy_steps_total, replace with sy_brightness
+  sy_index = 0;
+  for (hb_index = sy_start_index; hb_index < (sy_steps_total + di_start_index); hb_index++)
+  {
+    if (sy_brightness[sy_index] > hb_brightness[hb_index]) {
+      hb_brightness[hb_index] = sy_brightness[sy_index];
+    }
+    sy_index++;
+  }
+
+  // from di_steps_total, replace with di_brightness
+  di_index = 0;
+  for (hb_index = di_start_index; hb_index < (di_steps_total + di_start_index); hb_index++)
+  {
+    if (di_brightness[di_index] > hb_brightness[hb_index]) {
+      hb_brightness[hb_index] = di_brightness[di_index];
+    }
+    di_index++;
+  }
+
+  // display heartbeat
+  Serial.print(" Heartbeat: ");
+  for (hb_index = 0; hb_index < hb_steps_total; hb_index++)
+  {
+    Serial.print(hb_brightness[hb_index]); Serial.print(" ");
+  }
+  Serial.println(" ");
+
+  // ------------------------------------ Nightsky Setup -------------------------- //
+
+  Serial.print("brightness_array: ");
+  for (int brightness_array_index = 0; brightness_array_index < total_brightness_steps; brightness_array_index++)
+  {
+    rad = ns_f * brightness_array_index + ns_x0;
+    brightness_array[brightness_array_index] = ns_a * ns_a0 * (sin(rad) + ns_y0) * ns_brightness_max;
+    Serial.print(brightness_array[brightness_array_index]); Serial.print(" ");
+  }
+  Serial.println(" ");
+
+}
+
+// ------------------------------------------------- VOID LOOP -------------------------------------------------- //
+void loop()
+{
+  Serial.print("  brightness_scale "); Serial.print(brightness_scale); Serial.print(" ");
+  
+  // read pots
+  range_pot = (analogRead(range_pot_pin) / 1023.0) * 100.0; // output in inches to threshold
+  Serial.print("  range_pot "); Serial.print(range_pot); Serial.print(" ");
+  distance_min = range_pot;
+
+  // check range
+  inches = smoothAnalogRead(sonar_pin);
+  Serial.print("  inches "); Serial.print(inches); Serial.print(" ");
+
+  // human detected....
+  if (inches < distance_min)
+  {
+    for (hb_index = 0; hb_index < hb_steps_total; hb_index++)
+    {
+      for (LED_index = 0; LED_index < num_LEDs; LED_index++)
+      {
+        R = hb_brightness[hb_index];
+        G = hb_brightness[hb_index];
+        B = hb_brightness[hb_index];
+        strip1.setPixelColor(LED_index, R, G, B);
+      }
+      strip1.show();
+      delay(delay1);
+    }
+    Serial.println(" ");
+
+    // all LED Step indexes to 0 to restart randomization
+    for (LED_index = 0; LED_index < num_LEDs; LED_index++)
+    {
+      LED_step_indexes[LED_index] = 0;
+    }
+  }
+
+  // nightsky...
+  if (inches >= distance_min)
+  {
+    // update led_brightess[]
+    // determine if LED should randomly turn on if its already off
+    // if its already on, iterate the brightness from the brightness array matrix¨
+    for (LED_index = 0; LED_index < num_LEDs; LED_index++)
+    {
+      if (LED_step_indexes[LED_index] == 0)                           // if led state is 0
+      {
+        on_random_val = random(0, on_random_max);              // roll dice
+        // Serial.print(random_val); Serial.print(" ");
+        if (on_random_val >= on_random_max - 1) {
+          LED_step_indexes[LED_index]++; // if value is 10 // led state = 1
+        }
+      }
+      else {
+        LED_step_indexes[LED_index]++; // if state != 0 shift index
+      }
+      if (LED_step_indexes[LED_index] >= total_brightness_steps) {
+        LED_step_indexes[LED_index] = 0; // loop back index
+      }
+
+      brightness_array_index = LED_step_indexes[LED_index];
+      LED_brightness[LED_index] = brightness_array[brightness_array_index];  // led brightness = brightness from array index
+      R = LED_brightness[LED_index];
+      G = LED_brightness[LED_index];
+      B = LED_brightness[LED_index];
+      strip1.setPixelColor(LED_index, R, G, B);
+    }
+    strip1.show();
+    Serial.println(" ");
+    delay(0);
+  }
+}
+
+// END VOID LOOP
+
+// ------------- Functions ---------------- /
+
+// ------------------ smoothAnalogRead Function --------------- //
+// Analog reads a pin and creates a matrix and averages data across it [mV]
+int smoothAnalogRead(int pin)
+{
+  int const matrix_size = 20;
+  int inches = 0;
+  double matrix_total = 0;
+  int avg = 0;
+  for (int i = 0; i < matrix_size; i++)
+  {
+    inches = analogRead(pin);
+    matrix_total = matrix_total + inches; // Generate running total
+  }
+  avg = matrix_total / matrix_size;
+  return avg; // [mV]
+}
