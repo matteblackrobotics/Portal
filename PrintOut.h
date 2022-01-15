@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <math.h>
-#include "Lamp.h"
 
 void printInt(String a, int b)
 {
@@ -42,10 +41,22 @@ void printBool(String a, bool b)
   }
 }
 
+
+void printString(String a)
+{
+  Serial.print(" ");
+  Serial.print(a);
+  Serial.print(" ");
+}
+
+
 void printLn()
 {
   Serial.println(" ");
 }
 
-  
+void print1()
+{
+
+}  
 #endif
